@@ -1,0 +1,31 @@
+name: 'Digma Java OTEL Instrumentation'
+description: 'Adds instrumentation for sending Java OTEL traces to Digma'
+inputs:
+  collector_url:
+    description: 'URL of the Digma OTEL collector backend'
+    required: true
+  service_name:
+    description: 'The name of the application being observed'
+    required: true
+  environment:
+    description: 'The Digma environment name for this execution'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Download agent jar
+      shell: bash
+      run: curl --create-dirs -O -L --output-dir ./otel
+https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+    
+    - name: Download extension jar
+      shell: bash
+      run: curl --create-dirs -O -L --output-dir ./otel
+https://github.com/digma-ai/otel-java-instrumentation/releases/latest/download/digma-otel-agent-extension.jar
+    
+    - name: Set Environment Variables
+      shell: bash
+      run: |
+        echo "JAVA_TOOL_OPTIONS=-javaagent:/otel/javaagent.jar -Dotel.exporter.otlp.endpoint=http://localhost:5050 -Dotel.javaagent.extensions=/otel/digma-otel-agent-extension.jar" >> $GITHUB_ENV
+        echo "OTEL_SERVICE_NAME=${{ inputs.service_name }}" >> $GITHUB_ENV
+        echo "OTEL_RESOURCE_ATTRIBUTES=digma.environment=${{ inputs.environment }}" >> $GITHUB_ENV
