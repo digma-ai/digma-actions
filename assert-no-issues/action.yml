@@ -18,18 +18,19 @@ runs:
       run: |
         domain="${{ inputs.digma_url }}"
         api_token="${{ inputs.api_token }}"
-        environment="${{ inputs.environment }}"
         response=$(curl -X 'GET' \
-          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=${environment}&InsightViewType=Issues" \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
           -H 'accept: text/plain' \
           -H "Authorization: Token $api_token" \
           -s)
+        echo "API Response:"
+        echo "$response"
         echo "$response" > response.json
         insights_count=$(jq '.insights | length' response.json)
         if [ "$insights_count" -gt 0 ]; then
-          echo "Found issues:"
+          echo "Insights found:"
           jq -c '.insights[] | {type, displayName: .span.displayName}' response.json
-          echo "::error ::Issues found"
+          echo "::error ::Insights are present, failing the job."
           exit 1
         else
-          echo "No issues found."
+          echo "No insights found. Job succeeds."
