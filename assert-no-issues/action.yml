@@ -21,8 +21,7 @@ runs:
         response=$(curl -X 'GET' \
           "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
           -H 'accept: text/plain' \
-          -H "Authorization: Token $api_token" \
-          -s)
+          -H "Authorization: Token $api_token")
         echo "API Response:"
         echo "$response"
         echo "$response" > response.json
