@@ -1,0 +1,31 @@
+name: 'API Call and Parse JSON'
+description: 'Calls an API using a configurable domain, parses the JSON response, and fails the job if insights are found.'
+inputs:
+  digma_url:
+    description: 'The Digma API to call'
+    required: true
+  api_token:
+    description: 'Authorization token for API access'
+    required: true
+runs:
+  using: 'composite'
+  steps:
+    - name: Call API and Check Response
+      shell: bash
+      run: |
+        domain="${{ inputs.digma_url }}"
+        api_token="${{ inputs.api_token }}"
+        response=$(curl -X 'GET' \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
+          -H 'accept: text/plain' \
+          -H "Authorization: Token $api_token" \
+          -s)
+        echo "$response" > response.json
+        insights_count=$(jq '.insights | length' response.json)
+        if [ "$insights_count" -gt 0 ]; then
+          echo "Found issues:"
+          jq -c '.insights[] | {type, displayName: .span.displayName}' response.json
+          echo "::error ::Issues found"
+          exit 1
+        else
+          echo "No insights found. Job succeeds."
