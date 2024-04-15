@@ -7,6 +7,9 @@ inputs:
   api_token:
     description: 'Authorization token for API access'
     required: true
+  environment:
+    description: 'Digma environment'
+    required: true
 runs:
   using: 'composite'
   steps:
@@ -15,8 +18,9 @@ runs:
       run: |
         domain="${{ inputs.digma_url }}"
         api_token="${{ inputs.api_token }}"
+        environment="${{ inputs.environment }}"
         response=$(curl -X 'GET' \
-          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=${environment}&InsightViewType=Issues" \
           -H 'accept: text/plain' \
           -H "Authorization: Token $api_token" \
           -s)
@@ -28,4 +32,4 @@ runs:
           echo "::error ::Issues found"
           exit 1
         else
-          echo "No insights found. Job succeeds."
+          echo "No issues found."
