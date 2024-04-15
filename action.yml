@@ -15,17 +15,17 @@ runs:
   steps:
     - name: Download agent jar
       shell: bash
-      run: curl --create-dirs -O -L --output-dir ./otel
+      run: curl --create-dirs -O -L --output-dir /tmp/otel
 https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
     
     - name: Download extension jar
       shell: bash
-      run: curl --create-dirs -O -L --output-dir ./otel
+      run: curl --create-dirs -O -L --output-dir /tmp/otel
 https://github.com/digma-ai/otel-java-instrumentation/releases/latest/download/digma-otel-agent-extension.jar
     
     - name: Set Environment Variables
       shell: bash
       run: |
-        echo "JAVA_TOOL_OPTIONS=-javaagent:/otel/javaagent.jar -Dotel.exporter.otlp.endpoint=http://localhost:5050 -Dotel.javaagent.extensions=/otel/digma-otel-agent-extension.jar" >> $GITHUB_ENV
+        echo "JAVA_TOOL_OPTIONS=-javaagent:/tmp/otel/opentelemetry-javaagent.jar -Dotel.exporter.otlp.endpoint=${{inputs.collector_url}} -Dotel.javaagent.extensions=/tmp/otel/digma-otel-agent-extension.jar -Dotel.metrics.exporter=none -Dotel.logs.exporter=none -Dotel.exporter.otlp.protocol=grpc" >> $GITHUB_ENV 
         echo "OTEL_SERVICE_NAME=${{ inputs.service_name }}" >> $GITHUB_ENV
         echo "OTEL_RESOURCE_ATTRIBUTES=digma.environment=${{ inputs.environment }}" >> $GITHUB_ENV
