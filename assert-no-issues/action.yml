@@ -19,7 +19,7 @@ runs:
         domain="${{ inputs.digma_url }}"
         api_token="${{ inputs.api_token }}"
         response=$(curl -X 'GET' \
-          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
           -H 'accept: application/json' \
           -H "Authorization: Token $api_token" \
           -s)
