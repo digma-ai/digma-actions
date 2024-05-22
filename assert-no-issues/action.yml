@@ -22,11 +22,13 @@ runs:
     - name: Call API and Check Response
       shell: bash
       run: |
+        
         user="${{ inputs.user_name }}"
         password="${{ inputs.password }}"
         api_token="${{ inputs.api_token }}"
+        domain="${{ inputs.digma_url }}"
 
-        # Make the POST request and store the response
+       # Make the POST request and store the response
         RESPONSE=$(curl -s -X POST "${domain}/authentication/login" \
           -H "Digma-Access-Token: Token $api_token" \
           -H "Content-Type: application/json" \
@@ -36,7 +38,6 @@ runs:
         # Parse the access token from the response
         access_token=$(echo $RESPONSE | jq -r '.accessToken')
 
-        domain="${{ inputs.digma_url }}"
         response=$(curl -X 'GET' \
           "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=${environment_id}&InsightViewType=Issues" \
           -H 'accept: application/json' \
@@ -44,7 +45,7 @@ runs:
           -H "Authorization: Bearer $access_token" \
           -s)
         echo "$response" | jq . > response.json  # Save the formatted JSON to a file
-        
+      
         if jq -e '.insights | length > 0' response.json > /dev/null; then
           jq -r '.insights[] | "* \(.type):  \"\(.spanInfo.displayName)\""' response.json
           echo "::error ::Found new issues"
