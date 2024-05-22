@@ -22,7 +22,6 @@ runs:
     - name: Call API and Check Response
       shell: bash
       run: |
-        
         user="${{ inputs.user_name }}"
         password="${{ inputs.password }}"
         api_token="${{ inputs.api_token }}"
