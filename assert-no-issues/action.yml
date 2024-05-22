@@ -27,15 +27,15 @@ runs:
         api_token="${{ inputs.api_token }}"
         domain="${{ inputs.digma_url }}"
 
-       # Make the POST request and store the response
-        RESPONSE=$(curl -s -X POST "${domain}/authentication/login" \
+        # Make the POST request and store the response
+        response=$(curl -s -X POST "${domain}/authentication/login" \
           -H "Digma-Access-Token: Token $api_token" \
           -H "Content-Type: application/json" \
           -H "Accept: application/json" \
           -d '{"username":"'"$user"'","password":"'"$password"'"}')
 
         # Parse the access token from the response
-        access_token=$(echo $RESPONSE | jq -r '.accessToken')
+        access_token=$(echo $response | jq -r '.accessToken')
 
         response=$(curl -X 'GET' \
           "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=${environment_id}&InsightViewType=Issues" \
