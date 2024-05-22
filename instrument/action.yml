@@ -30,4 +30,4 @@ runs:
       run: |
         echo "JAVA_TOOL_OPTIONS=-javaagent:/tmp/otel/opentelemetry-javaagent.jar -Dotel.exporter.otlp.endpoint=${{ inputs.collector_url }} -Dotel.javaagent.extensions=/tmp/otel/digma-otel-agent-extension.jar -Dotel.metrics.exporter=none -Dotel.logs.exporter=none -Dotel.exporter.otlp.protocol=grpc" >> $GITHUB_ENV
         echo "OTEL_SERVICE_NAME=${{ inputs.service_name }}" >> $GITHUB_ENV
-        echo "OTEL_RESOURCE_ATTRIBUTES=digma.environment=${{ inputs.environment }}" >> $GITHUB_ENV
+        echo "OTEL_RESOURCE_ATTRIBUTES=digma.environment=${{ inputs.environment }},digma.environment.type=Public" >> $GITHUB_ENV
