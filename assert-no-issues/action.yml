@@ -49,7 +49,7 @@ runs:
           -s)
       
         if jq -e '.insights | length > 0' response.json > /dev/null; then
-          echo jq -r '.insights[] | "* \(.type):  \"\(.spanInfo.displayName)\""' response.json
+          echo "$response" | jq -r '.insights[] | "* \(.type):  \"\(.spanInfo.displayName)\""'
           echo "::error ::Found new issues"
           exit 1
         else
