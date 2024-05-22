@@ -7,7 +7,13 @@ inputs:
   api_token:
     description: 'Authorization token for API access'
     required: true
-  environment:
+  user_name:
+    description: 'Digma user'
+    required: true
+  password:
+    description: 'Digma password'
+    required: true
+  environment_id:
     description: 'Digma environment'
     required: true
 runs:
@@ -16,12 +22,26 @@ runs:
     - name: Call API and Check Response
       shell: bash
       run: |
-        domain="${{ inputs.digma_url }}"
+        user="${{ inputs.user_name }}"
+        password="${{ inputs.password }}"
         api_token="${{ inputs.api_token }}"
+
+        # Make the POST request and store the response
+        RESPONSE=$(curl -s -X POST "${domain}/authentication/login" \
+          -H "Digma-Access-Token: Token $api_token" \
+          -H "Content-Type: application/json" \
+          -H "Accept: application/json" \
+          -d '{"username":"'"$user"'","password":"'"$password"'"}')
+
+        # Parse the access token from the response
+        access_token=$(echo $RESPONSE | jq -r '.accessToken')
+
+        domain="${{ inputs.digma_url }}"
         response=$(curl -X 'GET' \
-          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=PETCLINIC_CI&InsightViewType=Issues" \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=${environment_id}&InsightViewType=Issues" \
           -H 'accept: application/json' \
-          -H "Authorization: Token $api_token" \
+          -H "Digma-Access-Token: Token $api_token" \
+          -H "Authorization: Bearer $access_token" \
           -s)
         echo "$response" | jq . > response.json  # Save the formatted JSON to a file
         
