@@ -30,9 +30,8 @@ runs:
         encoded_env=$(jq -nr --arg str "$environment_id" '$str | @uri')
 
 
-
         # Make the POST request and store the response
-        RESPONSE=$(curl -s -X POST "${domain}/authentication/login" \
+        response=$(curl -s -X POST "${domain}/authentication/login" \
           -H "Digma-Access-Token: Token $api_token" \
           -H "Content-Type: application/json" \
           -H "Accept: application/json" \
@@ -48,7 +47,7 @@ runs:
           -H "Authorization: Bearer $access_token" \
           -s)
       
-        if jq -e '.insights | length > 0' response.json > /dev/null; then
+        if echo "$response" | jq -e '.insights | length > 0' > /dev/null; then
           echo "$response" | jq -r '.insights[] | "* \(.type):  \"\(.spanInfo.displayName)\""'
           echo "::error ::Found new issues"
           exit 1
