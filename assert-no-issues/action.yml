@@ -26,9 +26,13 @@ runs:
         password="${{ inputs.password }}"
         api_token="${{ inputs.api_token }}"
         domain="${{ inputs.digma_url }}"
+        environment_id="${{ inputs.environment_id }}"
+        encoded_env=$(jq -nr --arg str "$environment_id" '$str | @uri')
+
+
 
         # Make the POST request and store the response
-        response=$(curl -s -X POST "${domain}/authentication/login" \
+        RESPONSE=$(curl -s -X POST "${domain}/authentication/login" \
           -H "Digma-Access-Token: Token $api_token" \
           -H "Content-Type: application/json" \
           -H "Accept: application/json" \
@@ -38,7 +42,7 @@ runs:
         access_token=$(echo $response | jq -r '.accessToken')
 
         response=$(curl -X 'GET' \
-          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=${environment_id}&InsightViewType=Issues" \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=${encoded_env}&InsightViewType=Issues" \
           -H 'accept: application/json' \
           -H "Digma-Access-Token: Token $api_token" \
           -H "Authorization: Bearer $access_token" \
