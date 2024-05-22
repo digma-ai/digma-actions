@@ -47,10 +47,9 @@ runs:
           -H "Digma-Access-Token: Token $api_token" \
           -H "Authorization: Bearer $access_token" \
           -s)
-        echo "$response" | jq . > response.json  # Save the formatted JSON to a file
       
         if jq -e '.insights | length > 0' response.json > /dev/null; then
-          jq -r '.insights[] | "* \(.type):  \"\(.spanInfo.displayName)\""' response.json
+          echo jq -r '.insights[] | "* \(.type):  \"\(.spanInfo.displayName)\""' response.json
           echo "::error ::Found new issues"
           exit 1
         else
