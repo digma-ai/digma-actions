@@ -41,7 +41,7 @@ runs:
         access_token=$(echo $response | jq -r '.accessToken')
 
         response=$(curl -X 'GET' \
-          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=false&DirectOnly=false&Environment=${encoded_env}&InsightViewType=Issues" \
+          "${domain}/Insights/get_insights_view?Page=0&PageSize=2&ShowDismissed=false&ShowUnreadOnly=true&DirectOnly=false&Environment=${encoded_env}&InsightViewType=Issues" \
           -H 'accept: application/json' \
           -H "Digma-Access-Token: Token $api_token" \
           -H "Authorization: Bearer $access_token" \
