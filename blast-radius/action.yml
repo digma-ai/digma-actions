@@ -54,7 +54,7 @@ runs:
         fi
 
         # Run the diff tool on the changed files
-        echo "$changed_files" | xargs /tmp/digma/java-diff --verbose=${{ inputs.verbose }}
+        echo "$changed_files" | xargs /tmp/digma/java-diff --base-ref=${{ inputs.base_ref }} --head-ref=${{ inputs.head_ref }} --verbose=${{ inputs.verbose }}
       shell: bash
 
     - name: Upload the CSV with methods
