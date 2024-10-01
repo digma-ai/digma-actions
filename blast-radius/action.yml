@@ -143,17 +143,18 @@ runs:
 
         echo "API response: $response"
 
-        # Parse the response for impacted flows
-        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% [\(.firstService.service)][\(.firstService.span)] -> [\(.lastService.service)][\(.lastService.span)]"')
+         impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"')
 
-        # Prepare the PR comment
+        # Prepare the PR comment as a numbered list of impacted flows
         pr_comment="### Impacted Flows:\n"
-        while IFS=',' read -r fileName packageName className methodName; do
-          if [ "$className" != "Class Name" ]; then
-            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-            pr_comment+="- **${methodCodeObjectId}**: \n"
-            pr_comment+="${impacted_flows}\n"
-          fi
+        i=1
+
+        # Iterate over the impacted flows and create a numbered list
+        for flow in $impacted_flows; do
+          pr_comment+="$i. ${flow}\n"
+          i=$((i + 1))
+        done
+        
         done < changed_codeobjects.csv
 
         echo "PR Comment: $pr_comment"
@@ -183,11 +184,13 @@ runs:
               -H "Content-Type: application/json" \
               -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
 
-            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% [\(.firstService.service)][\(.firstService.span)] -> [\(.lastService.service)][\(.lastService.span)]"')
+            # Parse the response and format impacted flows as a single line
+            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"')
 
-            # Add annotations for the file
+            # Check if there are impacted flows, and annotate each one in the changed file
             if [ -n "$impacted_flows" ]; then
-              for flow in $impacted_flows; do
+              # Iterate over the impacted flows and add an annotation for each flow
+              echo "$impacted_flows" | while IFS= read -r flow; do
                 echo "::notice file=$fileName::Impacted flow: $flow"
               done
             fi
