@@ -1,37 +1,45 @@
 name: 'Parse Changed Java Methods'
+description: 'A custom action to detect changed Java files and parse methods.'
 
-on:
-  workflow_dispatch:
-    inputs:
-      staged:
-        description: 'Check staged (uncommitted) changes instead of committed changes'
-        required: true
-        default: 'false'
+inputs:
+  staged:
+    description: 'Check staged (uncommitted) changes instead of committed changes'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Enable verbose mode'
+    required: false
+    default: 'false'
 
-jobs:
-  parse-java:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
 
-      - name: Download or Use the Executable
-        run: |
-          mkdir -p /tmp/digma
-          curl -L https://github.com/digma-ai/digma/raw/refs/heads/main/dev/tools/java-diff-linux-x64 -o /tmp/digma/java-diff
-          chmod +x /tmp/digma/java-diff
+    - name: Download or Use the Executable
+      run: |
+        mkdir -p /tmp/digma
+        curl -L https://github.com/digma-ai/digma/raw/refs/heads/main/dev/tools/java-diff-linux-x64 -o /tmp/digma/java-diff
+        chmod +x /tmp/digma/java-diff
 
-      - name: Detect changed Java files and parse methods
-        run: |
+    - name: Detect changed Java files and parse methods
+      run: |
+        if [ "${{ inputs.staged }}" = "true" ]; then
+          changed_files=$(git diff --cached --name-only | grep '.java')
+        else
           changed_files=$(git diff --name-only HEAD~1 HEAD | grep '.java')
-          if [ -z "$changed_files" ]; then
-            echo "No committed Java files changed."
-            exit 0
-          fi
-          echo "$changed_files" | xargs /tmp/digma/java-diff --verbose
+        fi
 
-      - name: Upload the CSV with methods
-        uses: actions/upload-artifact@v3
-        with:
-          name: changed_codeobjects
-          path: changed_codeobjects.csv
+        if [ -z "$changed_files" ]; then
+          echo "No committed Java files changed."
+          exit 0
+        fi
+
+        echo "$changed_files" | xargs /tmp/digma/java-diff --verbose=${{ inputs.verbose }}
+
+    - name: Upload the CSV with methods
+      uses: actions/upload-artifact@v3
+      with:
+        name: changed_codeobjects
+        path: changed_codeobjects.csv
