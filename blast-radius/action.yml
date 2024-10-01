@@ -1,4 +1,4 @@
-name: Parse Changed Java Methods
+name: 'Parse Changed Java Methods'
 
 on:
   workflow_dispatch:
