@@ -32,6 +32,15 @@ inputs:
     description: 'Enable verbose logging'
     required: false
     default: 'false'
+  github_token:
+    description: 'GitHub Token for interacting with the GitHub API'
+    required: true
+  repository:
+    description: 'The repository in the pull request'
+    required: true
+  pull_request_number:
+    description: 'The pull request number'
+    required: true
 
 runs:
   using: "composite"
@@ -149,10 +158,10 @@ runs:
 
         # Post a comment to the PR
         curl -X POST \
-          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Authorization: Bearer ${{ inputs.github_token }}" \
           -H "Content-Type: application/json" \
           -d "{\"body\": \"$pr_comment\"}" \
-          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+          "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
       shell: bash
 
     - name: Upload the CSV with methods
