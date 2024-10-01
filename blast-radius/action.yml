@@ -1,5 +1,21 @@
 name: 'Parse Changed Java Methods'
 
+inputs:
+  base_ref:
+    description: 'The base branch in the pull request'
+    required: true
+  head_ref:
+    description: 'The head branch in the pull request'
+    required: true
+  staged:
+    description: 'Check staged (uncommitted) changes instead of committed changes'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Enable verbose logging'
+    required: false
+    default: 'false'
+
 jobs:
   parse-java:
     runs-on: ubuntu-latest
@@ -11,8 +27,8 @@ jobs:
 
       - name: Fetch PR branches
         run: |
-          git fetch origin "${{ github.base_ref }}"  # Fetch the base (destination) branch
-          git fetch origin "${{ github.head_ref }}" # Fetch the head (source) branch
+          git fetch origin ${{ inputs.base_ref }}  # Fetch the base (destination) branch
+          git fetch origin ${{ inputs.head_ref }} # Fetch the head (source) branch
 
       - name: Download or Use the Executable
         run: |
