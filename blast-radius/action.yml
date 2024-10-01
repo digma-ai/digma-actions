@@ -1,58 +1,48 @@
 name: 'Parse Changed Java Methods'
-description: 'A custom action to detect changed Java files and parse methods.'
 
-inputs:
-  staged:
-    description: 'Check staged (uncommitted) changes instead of committed changes'
-    required: false
-    default: 'false'
-  verbose:
-    description: 'Enable verbose mode'
-    required: false
-    default: 'false'
+on:
+  pull_request:  # Trigger the workflow on a PR event
+    types: [opened, synchronize, reopened]
 
-runs:
-  using: "composite"
-  steps:
-    - name: Checkout repository
-      uses: actions/checkout@v2
-      with:
-        fetch-depth: 2
+jobs:
+  parse-java:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0  # Fetch the full history to enable proper diff
 
-    - name: Download or Use the Executable
-      run: |
-        mkdir -p /tmp/digma
-        curl -L https://github.com/digma-ai/digma/raw/refs/heads/main/dev/tools/java-diff-linux-x64 -o /tmp/digma/java-diff
-        chmod +x /tmp/digma/java-diff
-      shell: bash  # Specify shell
+      - name: Fetch PR branches
+        run: |
+          git fetch origin ${{ github.base_ref }}  # Fetch the base (destination) branch
+          git fetch origin ${{ github.head_ref }}  # Fetch the head (source) branch
 
-    - name: Detect changed Java files and parse methods
-      run: |
+      - name: Download or Use the Executable
+        run: |
+          mkdir -p /tmp/digma
+          curl -L https://github.com/digma-ai/digma/raw/refs/heads/main/dev/tools/java-diff-linux-x64 -o /tmp/digma/java-diff
+          chmod +x /tmp/digma/java-diff
+      shell: bash
 
-        if [ "${{ inputs.staged }}" = "true" ]; then
-          echo "Checking staged changes..."
-          changed_files=$(git diff --cached --name-only | grep '.java')
-        else
-          echo "Checking committed changes (HEAD~1 vs HEAD)..."
-          changed_files=$(git diff --name-only HEAD~1 HEAD || git diff --name-only HEAD | grep '.java')
-        fi
+      - name: Detect changed Java files and parse methods
+        run: |
+          # Compare the code between the source branch and the target branch in the PR
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }}...origin/${{ github.head_ref }} | grep '.java')
 
-        echo "Changed files: $changed_files"
+          echo "Changed files: $changed_files"
 
-        if [ -z "$changed_files" ]; then
-          echo "No committed Java files changed."
-          exit 0
-        fi
+          if [ -z "$changed_files" ]; then
+            echo "No Java files changed in this PR."
+            exit 0
+          fi
 
-        echo "$changed_files" | xargs /tmp/digma/java-diff --verbose=${{ inputs.verbose }} || {
-          echo "Failed to run java-diff"
-          exit 1
-        }
-        
-      shell: bash  # Specify shell
+          # Run the diff tool on the changed files
+          echo "$changed_files" | xargs /tmp/digma/java-diff --verbose=${{ inputs.verbose }}
+      shell: bash
 
-    - name: Upload the CSV with methods
-      uses: actions/upload-artifact@v3
-      with:
-        name: changed_codeobjects
-        path: changed_codeobjects.csv
+      - name: Upload the CSV with methods
+        uses: actions/upload-artifact@v3
+        with:
+          name: changed_codeobjects
+          path: changed_codeobjects.csv
