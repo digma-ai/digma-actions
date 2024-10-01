@@ -16,7 +16,9 @@ runs:
   steps:
     - name: Checkout repository
       uses: actions/checkout@v2
-
+      with:
+        fetch-depth: 2
+         
     - name: Download or Use the Executable
       run: |
         mkdir -p /tmp/digma
