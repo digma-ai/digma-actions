@@ -133,6 +133,8 @@ runs:
           --argjson methods "$(echo ${methodCodeObjectIds[@]} | jq -R . | jq -s .)" \
           '{environment: $env, methodCodeObjectIds: $methods}')
 
+        echo "API payload: $payload"
+
         # Call the get_method_usage API (ignore SSL certs)
         response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
           -H "Authorization: Bearer $ACCESS_TOKEN" \
