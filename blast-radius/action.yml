@@ -1,221 +1,162 @@
-name: Java Parser with Method Usage Insights
+name: 'Parse Changed Java Methods'
+description: 'A custom action to detect changed Java files and parse methods using Go, and to report affected system flows.'
 
-on:
-  pull_request:
-    types: [opened, synchronize]
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: 'Specify the environment (e.g., production, staging)'
-        required: true
-      username:
-        description: 'API Username'
-        required: true
-      password:
-        description: 'API Password'
-        required: true
-      api_token:
-        description: 'API Access Token'
-        required: true
+inputs:
+  base_ref:
+    description: 'The base branch in the pull request'
+    required: true
+  head_ref:
+    description: 'The head branch in the pull request'
+    required: true
+  environment:
+    description: 'Specify the environment (e.g., production, staging)'
+    required: true
+    default: 'production'
+  username:
+    description: 'API Username'
+    required: true
+  password:
+    description: 'API Password'
+    required: true
+  api_token:
+    description: 'API Access Token'
+    required: true
+  digma_url:
+    description: 'Digma API Base URL'
+    required: true
+  staged:
+    description: 'Check staged (uncommitted) changes instead of committed changes'
+    required: false
+    default: 'false'
+  verbose:
+    description: 'Enable verbose logging'
+    required: false
+    default: 'false'
 
-jobs:
-  parse-java-and-add-comment:
-    runs-on: ubuntu-latest
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+      with:
+        fetch-depth: 0  # Fetch full history to enable proper diff
 
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
+    - name: Fetch PR branches
+      run: |
+        git fetch origin "${{ inputs.base_ref }}"  # Fetch the base (destination) branch
+        git fetch origin "${{ inputs.head_ref }}"  # Fetch the head (source) branch
+      shell: bash
 
-      - name: Run Java diff tool
-        run: |
-          mkdir -p /tmp/digma
-          curl -L https://github.com/digma-ai/digma/raw/refs/heads/main/dev/tools/java-diff-linux-x64 -o /tmp/digma/java-diff
-          chmod +x /tmp/digma/java-diff
-          changed_files=$(git diff --name-only HEAD~1 HEAD | grep '.java')
-          if [ -z "$changed_files" ]; then
-            echo "No committed Java files changed."
-            exit 0
+    - name: Download or Use the Executable
+      run: |
+        mkdir -p /tmp/digma
+        curl -L https://github.com/digma-ai/digma/raw/refs/heads/main/dev/tools/java-diff-linux-x64 -o /tmp/digma/java-diff
+        chmod +x /tmp/digma/java-diff
+      shell: bash
+
+    - name: Detect changed Java files and parse methods
+      run: |
+        if [ "${{ inputs.staged }}" = "true" ]; then
+          changed_files=$(git diff --cached --name-only | grep '.java')
+        else
+          changed_files=$(git diff --name-only origin/${{ inputs.base_ref }}...origin/${{ inputs.head_ref }} | grep '.java')
+        fi
+
+        echo "Changed files: $changed_files"
+
+        if [ -z "$changed_files" ]; then
+          echo "No committed Java files changed."
+          exit 0
+        fi
+
+        # Run the diff tool on the changed files
+        echo "$changed_files" | xargs /tmp/digma/java-diff --base-ref=origin/${{ inputs.base_ref }} --head-ref=origin/${{ inputs.head_ref }} --verbose=${{ inputs.verbose }}
+      shell: bash
+
+    - name: Login to API and get access token (ignore SSL certs)
+      run: |
+        digma_url="${{ inputs.digma_url }}"
+        user="${{ inputs.username }}"
+        password="${{ inputs.password }}"
+        api_token="${{ inputs.api_token }}"
+
+        # Make the POST request and store the response (ignore SSL certs)
+        response=$(curl -k -s -X POST "${digma_url}/authentication/login" \
+          -H "Digma-Access-Token: Token $api_token" \
+          -H "Content-Type: application/json" \
+          -H "Accept: application/json" \
+          -d '{"username":"'"$user"'","password":"'"$password"'"}')
+
+        # Parse the access token from the response
+        access_token=$(echo $response | jq -r '.accessToken')
+
+        if [ -z "$access_token" ]; then
+          echo "Login failed. No access token received."
+          exit 1
+        else
+          echo "Login successful. Access token: $access_token"
+        fi
+
+        # Store access_token as an environment variable
+        echo "ACCESS_TOKEN=$access_token" >> $GITHUB_ENV
+      shell: bash
+
+    - name: Read CSV and call get_method_usage API (ignore SSL certs)
+      run: |
+        if [ ! -f changed_codeobjects.csv ]; then
+          echo "No changed methods detected."
+          exit 0
+        fi
+
+        # Parse the CSV to construct the methodCodeObjectIds in the form of packageName.className$_$$methodName
+        methodCodeObjectIds=()
+        while IFS=',' read -r packageName className methodName; do
+          if [ "$className" != "Class Name" ]; then
+            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+            methodCodeObjectIds+=("$methodCodeObjectId")
           fi
-          echo "$changed_files" | xargs /tmp/digma/java-diff --verbose
+        done < changed_codeobjects.csv
 
-      - name: Login to API and get access token
-        run: |
-          domain="https://api.example.com"
-          user="${{ inputs.username }}"
-          password="${{ inputs.password }}"
+        # Construct the API payload
+        environment="${{ inputs.environment }}"
+        payload=$(jq -n \
+          --arg env "$environment" \
+          --argjson methods "$(echo ${methodCodeObjectIds[@]} | jq -R . | jq -s .)" \
+          '{environment: $env, methodCodeObjectIds: $methods}')
 
-          # Make the POST request and store the response
-          response=$(curl -s -k -X POST "${domain}/authentication/login" \
-            -H "Digma-Access-Token: Token $api_token" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            -d '{"username":"'"$user"'","password":"'"$password"'"}')
+        # Call the get_method_usage API (ignore SSL certs)
+        response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
+          -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Content-Type: application/json" \
+          -d "$payload")
 
-          # Parse the access token from the response
-          access_token=$(echo $response | jq -r '.accessToken')
+        echo "API response: $response"
 
-          if [ -z "$access_token" ]; then
-            echo "Login failed. No access token received."
-            exit 1
-          else
-            echo "Login successful. Access token: $access_token"
+        # Parse the response for impacted flows
+        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% [\(.firstService.service)][\(.firstService.span)] -> [\(.lastService.service)][\(.lastService.span)]"')
+
+        # Prepare the PR comment
+        pr_comment="### Impacted Flows:\n"
+        while IFS=',' read -r packageName className methodName; do
+          if [ "$className" != "Class Name" ]; then
+            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+            pr_comment+="- **${methodCodeObjectId}**: \n"
+            pr_comment+="${impacted_flows}\n"
           fi
+        done < changed_codeobjects.csv
 
-          # Store access_token as an environment variable
-          echo "ACCESS_TOKEN=$access_token" >> $GITHUB_ENV
+        echo "PR Comment: $pr_comment"
 
-      - name: Read CSV and call get_method_usage API (ignore SSL certs)
-        run: |
-          if [ ! -f changed_codeobjects.csv ]; then
-            echo "No changed methods detected."
-            exit 0
-          fi
+        # Post a comment to the PR
+        curl -X POST \
+          -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          -H "Content-Type: application/json" \
+          -d "{\"body\": \"$pr_comment\"}" \
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
+      shell: bash
 
-          # Parse the CSV to construct the methodCodeObjectIds in the form of packageName.className$_$$methodName
-          methodCodeObjectIds=()
-          while IFS=',' read -r packageName className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-              methodCodeObjectIds+=("$methodCodeObjectId")
-            fi
-          done < changed_codeobjects.csv
-
-          # Construct the API payload
-          environment="${{ inputs.environment }}"
-          payload=$(jq -n \
-            --arg env "$environment" \
-            --argjson methods "$(echo ${methodCodeObjectIds[@]} | jq -R . | jq -s .)" \
-            '{environment: $env, methodCodeObjectIds: $methods}')
-
-          # Call the get_method_usage API (ignore SSL certs)
-          response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$payload")
-
-          echo "API response: $response"
-
-          # Parse the response
-          impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% [\(.firstService.service)][\(.firstService.span)] -> [\(.lastService.service)][\(.lastService.span)]"')
-
-          # Prepare the PR comment
-          pr_comment="### Impacted Flows:\n"
-          while IFS=',' read -r packageName className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-              pr_comment+="- **${methodCodeObjectId}**: \n"
-              pr_comment+="${impacted_flows}\n"
-            fi
-          done < changed_codeobjects.csv
-
-          echo "PR Comment: $pr_comment"
-
-          # Post a comment to the PR
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"body\": \"$pr_comment\"}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"        run: |
-          if [ ! -f changed_codeobjects.csv ]; then
-            echo "No changed methods detected."
-            exit 0
-          fi
-
-          # Parse the CSV to construct the methodCodeObjectIds in the form of packageName.className$_$$methodName
-          methodCodeObjectIds=()
-          while IFS=',' read -r packageName className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-              methodCodeObjectIds+=("$methodCodeObjectId")
-            fi
-          done < changed_codeobjects.csv
-
-          # Construct the API payload
-          environment="${{ inputs.environment }}"
-          payload=$(jq -n \
-            --arg env "$environment" \
-            --argjson methods "$(echo ${methodCodeObjectIds[@]} | jq -R . | jq -s .)" \
-            '{environment: $env, methodCodeObjectIds: $methods}')
-
-          # Call the get_method_usage API (ignore SSL certs)
-          response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$payload")
-
-          echo "API response: $response"
-
-          # Parse the response
-          impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% [\(.firstService.service)][\(.firstService.span)] -> [\(.lastService.service)][\(.lastService.span)]"')
-
-          # Prepare the PR comment
-          pr_comment="### Impacted Flows:\n"
-          while IFS=',' read -r packageName className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-              pr_comment+="- **${methodCodeObjectId}**: \n"
-              pr_comment+="${impacted_flows}\n"
-            fi
-          done < changed_codeobjects.csv
-
-          echo "PR Comment: $pr_comment"
-
-          # Post a comment to the PR
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"body\": \"$pr_comment\"}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"        run: |
-          if [ ! -f changed_codeobjects.csv ]; then
-            echo "No changed methods detected."
-            exit 0
-          fi
-
-          # Parse the CSV to construct the payload
-          methodCodeObjectIds=()
-          while IFS=',' read -r packageName className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-              methodCodeObjectIds+=("$methodCodeObjectId")
-            fi
-          done < changed_codeobjects.csv
-
-          # Construct the API payload
-          environment="${{ inputs.environment }}"
-          payload=$(jq -n \
-            --arg env "$environment" \
-            --argjson methods "$(echo ${methodCodeObjectIds[@]} | jq -R . | jq -s .)" \
-            '{environment: $env, methodCodeObjectIds: $methods}')
-
-          # Call the get_method_usage API
-          response=$(curl -k -s -X POST "https://api.example.com/Insights/get_method_usage" \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$payload")
-
-          echo "API response: $response"
-
-          # Extract the flows from the response
-          affectedFlows=$(echo $response | jq '.flows[]')
-
-          # Prepare the PR comment
-          pr_comment="### Affected Methods and System Flows\n"
-          while IFS=',' read -r className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              pr_comment+="- **${className}.${methodName}**: \n"
-              pr_comment+="$affectedFlows\n"
-            fi
-          done < changed_codeobjects.csv
-
-          # Post a comment to the PR
-          curl -X POST \
-            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
-            -H "Content-Type: application/json" \
-            -d "{\"body\": \"$pr_comment\"}" \
-            "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments"
-
-      - name: Upload the CSV with methods
-        uses: actions/upload-artifact@v3
-        with:
-          name: changed_codeobjects
-          path: changed_codeobjects.csv
+    - name: Upload the CSV with methods
+      uses: actions/upload-artifact@v3
+      with:
+        name: changed_codeobjects
+        path: changed_codeobjects.csv
