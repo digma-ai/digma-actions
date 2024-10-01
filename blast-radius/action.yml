@@ -1,5 +1,5 @@
 name: 'Parse Changed Java Methods'
-description: 'A custom action to detect changed Java files and parse methods using Go, and to report affected system flows.'
+description: 'A custom action to detect changed Java files, parse methods using Go, and report affected system flows with annotations.'
 
 inputs:
   base_ref:
@@ -119,7 +119,7 @@ runs:
 
         # Parse the CSV to construct the methodCodeObjectIds in the form of packageName.className$_$$methodName
         methodCodeObjectIds=()
-        while IFS=',' read -r packageName className methodName; do
+        while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
             methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
             methodCodeObjectIds+=("$methodCodeObjectId")
@@ -148,7 +148,7 @@ runs:
 
         # Prepare the PR comment
         pr_comment="### Impacted Flows:\n"
-        while IFS=',' read -r packageName className methodName; do
+        while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
             methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
             pr_comment+="- **${methodCodeObjectId}**: \n"
@@ -164,6 +164,35 @@ runs:
           -H "Content-Type: application/json" \
           -d "{\"body\": \"$pr_comment\"}" \
           "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
+      shell: bash
+
+    - name: Annotate changed files with flows
+      run: |
+        if [ ! -f changed_codeobjects.csv ]; then
+          echo "No changed methods detected."
+          exit 0
+        fi
+
+        while IFS=',' read -r fileName packageName className methodName; do
+          if [ "$className" != "Class Name" ]; then
+            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+
+            # Fetch impacted flows for each method
+            response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
+
+            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% [\(.firstService.service)][\(.firstService.span)] -> [\(.lastService.service)][\(.lastService.span)]"')
+
+            # Add annotations for the file
+            if [ -n "$impacted_flows" ]; then
+              for flow in $impacted_flows; do
+                echo "::notice file=$fileName::Impacted flow: $flow"
+              done
+            fi
+          fi
+        done < changed_codeobjects.csv
       shell: bash
 
     - name: Upload the CSV with methods
