@@ -141,7 +141,7 @@ runs:
         environment="${{ inputs.environment }}"
         payload=$(jq -n \
           --arg env "$environment" \
-          --argjson methods "$(echo ${methodCodeObjectIds[@]} | jq -R . | jq -s .)" \
+          --argjson methods "$(printf '%s\n' "${methodCodeObjectIds[@]}" | jq -R . | jq -s .)" \
           '{environment: $env, methodCodeObjectIds: $methods}')
 
         echo "API payload: $payload"
