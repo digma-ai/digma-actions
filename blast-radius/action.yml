@@ -148,7 +148,7 @@ runs:
         echo "API response: $response"
 
         # Parse the response for impacted flows and include the Jaeger trace link
-        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link]('"${{ inputs.jaeger_url }}"'/trace/\(.sampleTraceIds[0])"')
+        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link]('${{ inputs.jaeger_url }}/trace/\(.sampleTraceIds[0])')"')
 
         # Prepare the PR comment with a numbered list
         pr_comment="### Impacted Flows:\n"
@@ -158,16 +158,12 @@ runs:
         while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
             methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-            flows_for_method=$(echo "$response" | jq -r ".methodsFlows[] | select(.methodCodeObjectId == \"$methodCodeObjectId\") | .flows[] | \"\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\"")
+            flows_for_method=$(echo "$response" | jq -r ".methodsFlows[] | select(.methodCodeObjectId == \"$methodCodeObjectId\") | .flows[] | \"\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](${inputs.jaeger_url}/trace/\(.sampleTraceIds[0])\")")
             
             if [ -n "$flows_for_method" ]; then
-              for flow in $flows_for_method; do
-                # Get the first sample trace ID for each flow and format the Jaeger link
-                trace_id=$(echo "$response" | jq -r ".methodsFlows[] | select(.methodCodeObjectId == \"$methodCodeObjectId\") | .flows[] | .sampleTraceIds[0]")
-                jaeger_link="${{ inputs.jaeger_url }}/trace/$trace_id"
-                
+              for flow in "$flows_for_method"; do
                 # Append the flow information to the PR comment with the Jaeger link
-                pr_comment+="$flow_number. $flow - [Trace Link]($jaeger_link)\n"
+                pr_comment+="$flow_number. $flow\n"
                 ((flow_number++))
               done
             fi
@@ -202,23 +198,12 @@ runs:
               -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
 
             # Parse the response and format impacted flows as a single line
-            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[]')
+            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link]('${{ inputs.jaeger_url }}/trace/\(.sampleTraceIds[0])')"')
 
             # Check if there are impacted flows, and annotate each one in the changed file
             if [ -n "$impacted_flows" ]; then
-              echo "$impacted_flows" | jq -r '. | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"' | while IFS= read -r flow; do
-                # Extract the first sampleTraceId for the current flow
-                sampleTraceId=$(echo "$impacted_flows" | jq -r '.sampleTraceIds[0]')
-                
-                # Construct the Jaeger trace URL or provide a fallback if no trace is available
-                if [ -n "$sampleTraceId" ]; then
-                  jaeger_url="${{ inputs.jaeger_url }}/trace/$sampleTraceId"
-                else
-                  jaeger_url="No trace available"
-                fi
-
-                # Annotate the file with the impacted flow and Jaeger trace link
-                echo "::notice file=$fileName::Impacted flow: $flow (Jaeger trace: $jaeger_url)"
+              echo "$impacted_flows" | while IFS= read -r flow; do
+                echo "::notice file=$fileName::Impacted flow: $flow"
               done
             fi
           fi
