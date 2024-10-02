@@ -175,10 +175,8 @@ runs:
           -H "Content-Type: application/json" \
           -d "{\"body\": \"$pr_comment\"}" \
           "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
-      shell: bash
 
-    - name: Annotate changed files with flows
-      run: |
+        # Add annotations
         if [ ! -f changed_codeobjects.csv ]; then
           echo "No changed methods detected."
           exit 0
@@ -188,7 +186,7 @@ runs:
         response_flows=$(echo "$response" | jq -r '.methodsFlows[] | {methodCodeObjectId, flows}')
 
         echo "Response flows: $response_flows"
-        
+
         # Iterate over each row in the CSV
         while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
