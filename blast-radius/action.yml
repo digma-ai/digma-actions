@@ -193,27 +193,30 @@ runs:
             # Create methodCodeObjectId based on the CSV row
             methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
 
+            echo "looking for matching flows: $methodCodeObjectId"
+
             # Find matching flows for the methodCodeObjectId in the API response
             matching_flows=$(echo "$response_flows" | jq -r --arg methodCodeObjectId "$methodCodeObjectId" '
               select(.methodCodeObjectId == $methodCodeObjectId) | .flows[]')
 
-            echo "looking for matching flows: $methodCodeObjectId"
-
+            echo "matching flows: $matching_flows"
+            
             if [ -n "$matching_flows" ]; then
               flow_number=1
-              annotation="Impacted flows:\n"
+              annotation=""
+              title="Impacted flows:"
 
               # Iterate over matching flows and create a numbered list
               echo "$matching_flows" | jq -r '
                 "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](\(.sampleTraceIds[0]))"' | while IFS= read -r flow; do
 
                 # Append to the annotation message
-                annotation+="$flow_number. $flow\n"
+                annotation+="$flow_number. $flow \n"
                 ((flow_number++))
               done
               echo "adding annotation $annotation"
               # Echo the annotation
-              echo "::notice file=$fileName::$annotation"
+              echo "::notice file=$fileName,title=$title::$annotation"
             fi
           fi
         done < changed_codeobjects.csv
