@@ -155,7 +155,7 @@ runs:
         echo "API response: $response"
 
         # Parse the response for impacted flows and include the Jaeger trace link
-        impacted_flows=$(echo "$response" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"')
+        impacted_flows=$(echo "$response" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"')
         # Prepare the PR comment with a numbered list
         pr_comment="### Impacted Flows:\n"
         flow_number=1
