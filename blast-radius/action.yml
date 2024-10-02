@@ -166,6 +166,26 @@ runs:
           ((flow_number++))
         done <<< "$impacted_flows"
 
+        # New code
+        grouped_flows=$(echo "$response" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '
+          .methodsFlows[]
+          | .flows[] as $flow
+          | "\($flow.firstService.service):\($flow.firstService.span) -> \($flow.lastService.service):\($flow.lastService.span)" as $flow_key
+          | { flow_key: $flow_key, methodCodeObjectId: .methodCodeObjectId, traceLink: "\($jaeger_url)/trace/\($flow.sampleTraceIds[0])" }
+          | [$flow_key, .methodCodeObjectId, .traceLink] | @tsv' |
+          awk -F'\t' '{
+            split($2, method_parts, "\\$_\\$"); # Split methodCodeObjectId into class and method
+            class_name = method_parts[1];
+            method_name = method_parts[2];
+            flow[$1] = flow[$1] "\n- **" class_name "." method_name "** [Trace Link]("$3")";
+          }
+          END {
+            for (key in flow) {
+              print "### " key "\n" flow[key] "\n";
+            }
+          }')
+
+        pr_comment="### Impacted Flows:\n $grouped_flows"
         # Output the PR comment
         echo "PR Comment: $pr_comment"
 
@@ -210,7 +230,7 @@ runs:
               while IFS= read -r flow; do
                 echo "posting annotation:  $flow"
                 echo "::notice file=$fileName,title=$title::wiki https://github.com/your/repo/wiki/GHA-0001::$flow"
-                echo "::notice file=$fileName,title=$title::$flow https://github.com/your/repo/wiki/GHA-0001"
+                echo "::notice file=$fileName,title=$title::$flow https://digma.com/1"
 
                 ((flow_number++))
               done <<< "$(echo "$matching_flows" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '
