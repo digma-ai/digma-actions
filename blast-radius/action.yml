@@ -148,7 +148,7 @@ runs:
         echo "API response: $response"
 
         # Parse the response for impacted flows and include the Jaeger trace link
-        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[\(.sampleTraceIds[0])](\(${{ inputs.jaeger_url }}/trace/\(.sampleTraceIds[0]))"')
+        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link]('"${{ inputs.jaeger_url }}"'/trace/\(.sampleTraceIds[0])"')
 
         # Prepare the PR comment with a numbered list
         pr_comment="### Impacted Flows:\n"
@@ -186,41 +186,43 @@ runs:
 
     - name: Annotate changed files with flows
       run: |
-          if [ ! -f changed_codeobjects.csv ]; then
-            echo "No changed methods detected."
-            exit 0
-          fi
+        if [ ! -f changed_codeobjects.csv ]; then
+          echo "No changed methods detected."
+          exit 0
+        fi
 
-          while IFS=',' read -r fileName packageName className methodName; do
-            if [ "$className" != "Class Name" ]; then
-              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+        while IFS=',' read -r fileName packageName className methodName; do
+          if [ "$className" != "Class Name" ]; then
+            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
 
-              # Fetch impacted flows for each method
-              response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
-                -H "Authorization: Bearer $ACCESS_TOKEN" \
-                -H "Content-Type: application/json" \
-                -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
+            # Fetch impacted flows for each method
+            response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
+              -H "Authorization: Bearer $ACCESS_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
 
-              # Parse the response and format impacted flows as a single line
-              impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[]')
+            # Parse the response and format impacted flows as a single line
+            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[]')
 
-              # Check if there are impacted flows, and annotate each one in the changed file
-              if [ -n "$impacted_flows" ]; then
-                echo "$impacted_flows" | jq -r '. | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"' | while IFS= read -r flow; do
-                  # Extract the first sampleTraceId
-                  sampleTraceId=$(echo "$impacted_flows" | jq -r '.sampleTraceIds[0]')
-                  if [ -n "$sampleTraceId" ]; then
-                    jaeger_url="${{ inputs.jaeger_url }}/trace/$sampleTraceId"
-                  else
-                    jaeger_url="No trace available"
-                  fi
+            # Check if there are impacted flows, and annotate each one in the changed file
+            if [ -n "$impacted_flows" ]; then
+              echo "$impacted_flows" | jq -r '. | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"' | while IFS= read -r flow; do
+                # Extract the first sampleTraceId for the current flow
+                sampleTraceId=$(echo "$impacted_flows" | jq -r '.sampleTraceIds[0]')
+                
+                # Construct the Jaeger trace URL or provide a fallback if no trace is available
+                if [ -n "$sampleTraceId" ]; then
+                  jaeger_url="${{ inputs.jaeger_url }}/trace/$sampleTraceId"
+                else
+                  jaeger_url="No trace available"
+                fi
 
-                  # Annotate the file with the impacted flow and Jaeger trace link
-                  echo "::notice file=$fileName::Impacted flow: $flow (Jaeger trace: $jaeger_url)"
-                done
-              fi
+                # Annotate the file with the impacted flow and Jaeger trace link
+                echo "::notice file=$fileName::Impacted flow: $flow (Jaeger trace: $jaeger_url)"
+              done
             fi
-          done < changed_codeobjects.csv
+          fi
+        done < changed_codeobjects.csv
       shell: bash
 
     - name: Upload the CSV with methods
