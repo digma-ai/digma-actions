@@ -121,13 +121,19 @@ runs:
           exit 0
         fi
 
-        # Parse the CSV to construct the methodCodeObjectIds in the form of packageName.className$_$$methodName
         methodCodeObjectIds=()
+        firstLine=true  # Flag to skip the first line (header)
+
         while IFS=',' read -r fileName packageName className methodName; do
-          if [ "$className" != "Class Name" ]; then
-            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-            methodCodeObjectIds+=("$methodCodeObjectId")
+          if [ "$firstLine" = true ]; then
+            firstLine=false  # Skip the header line
+            continue
           fi
+
+          # Construct the methodCodeObjectId
+          methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+          methodCodeObjectIds+=("$methodCodeObjectId")
+
         done < changed_codeobjects.csv
 
         # Construct the API payload
