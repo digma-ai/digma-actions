@@ -1,5 +1,5 @@
 name: 'Parse Changed Java Methods'
-description: 'A custom action to detect changed Java files, parse methods using Go, and report affected system flows with annotations.'
+description: 'A custom action to detect changed Java files and parse methods using Go, and to report affected system flows.'
 
 inputs:
   base_ref:
@@ -24,6 +24,9 @@ inputs:
   digma_url:
     description: 'Digma API Base URL'
     required: true
+  jaeger_url:
+    description: 'Jaeger UI Base URL'
+    required: true
   staged:
     description: 'Check staged (uncommitted) changes instead of committed changes'
     required: false
@@ -40,6 +43,9 @@ inputs:
     required: true
   pull_request_number:
     description: 'The pull request number'
+    required: true
+  jaeger_url:
+    description: 'jaeger url for traces'
     required: true
 
 runs:
@@ -143,18 +149,31 @@ runs:
 
         echo "API response: $response"
 
-         impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"')
+        # Parse the response for impacted flows and include the Jaeger trace link
+        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[\(.sampleTraceIds[0])](\(${{ inputs.jaeger_url }}/trace/\(.sampleTraceIds[0]))"')
 
-        # Prepare the PR comment as a numbered list of impacted flows
+        # Prepare the PR comment with a numbered list
         pr_comment="### Impacted Flows:\n"
-        i=1
+        flow_number=1
 
-        # Iterate over the impacted flows and create a numbered list
-        for flow in $impacted_flows; do
-          pr_comment+="$i. ${flow}\n"
-          i=$((i + 1))
-        done
-        
+        # Read through the flows and append them to the PR comment
+        while IFS=',' read -r fileName packageName className methodName; do
+          if [ "$className" != "Class Name" ]; then
+            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+            flows_for_method=$(echo "$response" | jq -r ".methodsFlows[] | select(.methodCodeObjectId == \"$methodCodeObjectId\") | .flows[] | \"\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\"")
+            
+            if [ -n "$flows_for_method" ]; then
+              for flow in $flows_for_method; do
+                # Get the first sample trace ID for each flow and format the Jaeger link
+                trace_id=$(echo "$response" | jq -r ".methodsFlows[] | select(.methodCodeObjectId == \"$methodCodeObjectId\") | .flows[] | .sampleTraceIds[0]")
+                jaeger_link="${{ inputs.jaeger_url }}/trace/$trace_id"
+                
+                # Append the flow information to the PR comment with the Jaeger link
+                pr_comment+="$flow_number. $flow - [Trace Link]($jaeger_link)\n"
+                ((flow_number++))
+              done
+            fi
+          fi
         done < changed_codeobjects.csv
 
         echo "PR Comment: $pr_comment"
@@ -167,35 +186,43 @@ runs:
           "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
       shell: bash
 
-    - name: Annotate changed files with flows
-      run: |
-        if [ ! -f changed_codeobjects.csv ]; then
-          echo "No changed methods detected."
-          exit 0
-        fi
-
-        while IFS=',' read -r fileName packageName className methodName; do
-          if [ "$className" != "Class Name" ]; then
-            methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-
-            # Fetch impacted flows for each method
-            response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
-              -H "Authorization: Bearer $ACCESS_TOKEN" \
-              -H "Content-Type: application/json" \
-              -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
-
-            # Parse the response and format impacted flows as a single line
-            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"')
-
-            # Check if there are impacted flows, and annotate each one in the changed file
-            if [ -n "$impacted_flows" ]; then
-              # Iterate over the impacted flows and add an annotation for each flow
-              echo "$impacted_flows" | while IFS= read -r flow; do
-                echo "::notice file=$fileName::Impacted flow: $flow"
-              done
-            fi
+      - name: Annotate changed files with flows
+        run: |
+          if [ ! -f changed_codeobjects.csv ]; then
+            echo "No changed methods detected."
+            exit 0
           fi
-        done < changed_codeobjects.csv
+
+          while IFS=',' read -r fileName packageName className methodName; do
+            if [ "$className" != "Class Name" ]; then
+              methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
+
+              # Fetch impacted flows for each method
+              response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
+                -H "Authorization: Bearer $ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
+
+              # Parse the response and format impacted flows as a single line
+              impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[]')
+
+              # Check if there are impacted flows, and annotate each one in the changed file
+              if [ -n "$impacted_flows" ]; then
+                echo "$impacted_flows" | jq -r '. | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)"' | while IFS= read -r flow; do
+                  # Extract the first sampleTraceId
+                  sampleTraceId=$(echo "$impacted_flows" | jq -r '.sampleTraceIds[0]')
+                  if [ -n "$sampleTraceId" ]; then
+                    jaeger_url="${{ inputs.jaeger_url }}/trace/$sampleTraceId"
+                  else
+                    jaeger_url="No trace available"
+                  fi
+
+                  # Annotate the file with the impacted flow and Jaeger trace link
+                  echo "::notice file=$fileName::Impacted flow: $flow (Jaeger trace: $jaeger_url)"
+                done
+              fi
+            fi
+          done < changed_codeobjects.csv
       shell: bash
 
     - name: Upload the CSV with methods
