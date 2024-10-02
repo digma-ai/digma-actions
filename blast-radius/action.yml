@@ -187,6 +187,8 @@ runs:
         # Parse the API response and store impacted flows
         response_flows=$(echo "$response" | jq -r '.methodsFlows[] | {methodCodeObjectId, flows}')
 
+        echo "Response flows: $response_flows"
+        
         # Iterate over each row in the CSV
         while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
@@ -197,8 +199,8 @@ runs:
             matching_flows=$(echo "$response_flows" | jq -r --arg methodCodeObjectId "$methodCodeObjectId" '
               select(.methodCodeObjectId == $methodCodeObjectId) | .flows[]')
 
-            echo "looking for matching flows"
-            
+            echo "looking for matching flows: $methodCodeObjectId"
+
             if [ -n "$matching_flows" ]; then
               flow_number=1
               annotation="Impacted flows:\n"
