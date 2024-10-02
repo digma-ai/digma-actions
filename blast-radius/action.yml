@@ -197,6 +197,8 @@ runs:
             matching_flows=$(echo "$response_flows" | jq -r --arg methodCodeObjectId "$methodCodeObjectId" '
               select(.methodCodeObjectId == $methodCodeObjectId) | .flows[]')
 
+            echo "looking for matching flows"
+            
             if [ -n "$matching_flows" ]; then
               flow_number=1
               annotation="Impacted flows:\n"
