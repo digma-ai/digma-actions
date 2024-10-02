@@ -185,7 +185,7 @@ runs:
             }
           }')
 
-        pr_comment="### Impacted Flows:\n $grouped_flows"
+        pr_comment="### Impacted Flows: $grouped_flows"
         # Escape quotes and newlines for JSON
 
         # Prepare the JSON payload for the GitHub API
@@ -197,7 +197,7 @@ runs:
         curl -X POST \
           -H "Authorization: Bearer ${{ inputs.github_token }}" \
           -H "Content-Type: application/json" \
-          -d "$payload" \
+          -d "{body: $pr_comment}" \
           "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
 
         # Add annotations
