@@ -184,8 +184,8 @@ runs:
           "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
       shell: bash
 
-      - name: Annotate changed files with flows
-        run: |
+    - name: Annotate changed files with flows
+      run: |
           if [ ! -f changed_codeobjects.csv ]; then
             echo "No changed methods detected."
             exit 0
