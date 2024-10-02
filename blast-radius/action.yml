@@ -209,7 +209,8 @@ runs:
               # Use process substitution or here-string to avoid subshells
               while IFS= read -r flow; do
                 echo "posting annotation:  $flow"
-                echo "::notice file=$fileName,title=$title::$flow"
+                echo "::notice file=$fileName,title=$title links::wiki https://github.com/your/repo/wiki/GHA-0001::$flow"
+                echo "::notice file=$fileName,title=$title links::wiki https://github.com/your/repo/wiki/GHA-0001"
 
                 ((flow_number++))
               done <<< "$(echo "$matching_flows" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '
