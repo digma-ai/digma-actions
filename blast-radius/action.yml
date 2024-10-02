@@ -200,6 +200,7 @@ runs:
           exit 0
         fi
 
+        # Parse the CSV to construct the methodCodeObjectIds in the form of packageName.className$_$$methodName
         while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
             methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
@@ -211,16 +212,26 @@ runs:
               -d "{\"environment\": \"${{ inputs.environment }}\", \"methodCodeObjectIds\": [\"${methodCodeObjectId}\"]}")
 
             # Parse the response and format impacted flows as a single line
-            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link]('${{ inputs.jaeger_url }}/trace/\(.sampleTraceIds[0])')"')
+            impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[]')
 
             # Check if there are impacted flows, and annotate each one in the changed file
             if [ -n "$impacted_flows" ]; then
-              echo "$impacted_flows" | while IFS= read -r flow; do
-                echo "::notice file=$fileName::Impacted flow: $flow"
+              echo "$impacted_flows" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '. | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"' | while IFS= read -r flow; do
+                # Extract the first sampleTraceId
+                sampleTraceId=$(echo "$impacted_flows" | jq -r '.sampleTraceIds[0]')
+                if [ -n "$sampleTraceId" ]; then
+                  jaeger_url="${{ inputs.jaeger_url }}/trace/$sampleTraceId"
+                else
+                  jaeger_url="No trace available"
+                fi
+
+                # Annotate the file with the impacted flow and Jaeger trace link
+                echo "::notice file=$fileName::Impacted flow: $flow (Jaeger trace: $jaeger_url)"
               done
             fi
           fi
         done < changed_codeobjects.csv
+
       shell: bash
 
     - name: Upload the CSV with methods
