@@ -161,7 +161,7 @@ runs:
         flow_number=1
 
         # Parse the response for impacted flows and include the Jaeger trace link
-        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link]('${{ inputs.jaeger_url }}/trace/\(.sampleTraceIds[0])'")')
+        impacted_flows=$(echo "$response" | jq -r '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link]('${inputs.jaeger_url}/trace/\(.sampleTraceIds[0])')')
 
         # Prepare the PR comment with a numbered list
         pr_comment="### Impacted Flows:\n"
@@ -177,7 +177,7 @@ runs:
               for flow in $flows_for_method; do
                 # Get the first sample trace ID for each flow and format the Jaeger link
                 trace_id=$(echo "$response" | jq -r ".methodsFlows[] | select(.methodCodeObjectId == \"$methodCodeObjectId\") | .flows[] | .sampleTraceIds[0]")
-                jaeger_link="${{ inputs.jaeger_url }}/trace/$trace_id"
+                jaeger_link="${inputs.jaeger_url}/trace/$trace_id"
                 
                 # Append the flow information to the PR comment with the Jaeger link
                 pr_comment+="$flow_number. $flow - [Trace Link]($jaeger_link)\n"
