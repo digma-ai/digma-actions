@@ -200,7 +200,7 @@ runs:
               select(.methodCodeObjectId == $methodCodeObjectId) | .flows[]')
 
             echo "matching flows: $matching_flows"
-            
+
             if [ -n "$matching_flows" ]; then
               flow_number=1
               annotation=""
@@ -210,6 +210,7 @@ runs:
               echo "$matching_flows" | jq -r '
                 "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](\(.sampleTraceIds[0]))"' | while IFS= read -r flow; do
 
+                echo "$flow_number. $flow \n"
                 # Append to the annotation message
                 annotation+="$flow_number. $flow \n"
                 ((flow_number++))
