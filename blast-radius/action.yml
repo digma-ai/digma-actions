@@ -204,19 +204,17 @@ runs:
             if [ -n "$matching_flows" ]; then
               flow_number=1
               annotation=""
-              title="Impacted flows:"
+              title="Impacted flow"
 
               # Use process substitution or here-string to avoid subshells
               while IFS= read -r flow; do
-                annotation="${flow_number}. $flow"
-                echo "posting annotation: $annotation"
-                echo "::notice file=$fileName,title=$title::$annotation"
+                echo "posting annotation:  $flow"
+                echo "::notice file=$fileName,title=$title::$flow"
 
                 ((flow_number++))
-              done <<< "$(echo "$matching_flows" | jq -r '
-                "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](\(.sampleTraceIds[0]))"')"
+              done <<< "$(echo "$matching_flows" | jq -r --arg jaeger_url "${{ inputs.jaeger_url }}" '
+                "\(.firstService.service):\(.firstService.span) -> \(.lastService.service):\(.lastService.span) \($jaeger_url)/trace/\(.sampleTraceIds[0])"')"
               
-              # Echo the annotation
             fi
           fi
         done < changed_codeobjects.csv
