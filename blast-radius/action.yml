@@ -161,7 +161,7 @@ runs:
         flow_number=1
 
         # Parse the response for impacted flows and include the Jaeger trace link
-        impacted_flows=$(echo "$response" | jq -r --arg jaeger_url "${inputs.jaeger_url}" '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"')
+        impacted_flows=$(echo "$response" | jq -r --arg jaeger_url "${{inputs.jaeger_url}}" '.methodsFlows[] | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"')
 
         # Prepare the PR comment with a numbered list
         pr_comment="### Impacted Flows:\n"
@@ -171,7 +171,7 @@ runs:
         while IFS=',' read -r fileName packageName className methodName; do
           if [ "$className" != "Class Name" ]; then
             methodCodeObjectId="${packageName}.${className}\$_\$${methodName}"
-            flows_for_method=$(echo "$response" | jq -r --arg methodCodeObjectId "$methodCodeObjectId" --arg jaeger_url "${inputs.jaeger_url}" '.methodsFlows[] | select(.methodCodeObjectId == $methodCodeObjectId) | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"')
+            flows_for_method=$(echo "$response" | jq -r --arg methodCodeObjectId "$methodCodeObjectId" --arg jaeger_url "${{inputs.jaeger_url}}" '.methodsFlows[] | select(.methodCodeObjectId == $methodCodeObjectId) | .flows[] | "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span)\n[Trace Link](\($jaeger_url)/trace/\(.sampleTraceIds[0]))"')
             
             if [ -n "$flows_for_method" ]; then
               while IFS= read -r flow; do
