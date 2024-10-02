@@ -206,16 +206,14 @@ runs:
               annotation=""
               title="Impacted flows:"
 
-              # Iterate over matching flows and create a numbered list
-              echo "$matching_flows" | jq -r '
-                "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](\(.sampleTraceIds[0]))"' | while IFS= read -r flow; do
-
+              # Use process substitution or here-string to avoid subshells
+              while IFS= read -r flow; do
                 echo "$flow_number. $flow \n"
-                # Append to the annotation message
-                annotation+="$flow_number. $flow \n"
+                annotation="${annotation}${flow_number}. $flow \n"
                 ((flow_number++))
-              done
-              echo "adding annotation $annotation"
+              done <<< "$(echo "$matching_flows" | jq -r '
+                "\(.percentage)% *\(.firstService.service)*:\(.firstService.span) -> *\(.lastService.service)*:\(.lastService.span) [Trace Link](\(.sampleTraceIds[0]))"')"
+              
               # Echo the annotation
               echo "::notice file=$fileName,title=$title::$annotation"
             fi
