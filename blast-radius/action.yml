@@ -194,7 +194,7 @@ runs:
         echo "PR Comment: $pr_comment"
 
         # Post the PR comment
-        curl -X POST \
+        curl --trace -X POST \
           -H "Authorization: Bearer ${{ inputs.github_token }}" \
           -H "Content-Type: application/json" \
           -d "{'body': '$pr_comment'}" \
