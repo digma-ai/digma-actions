@@ -209,7 +209,7 @@ runs:
           -H "Authorization: Bearer ${{ inputs.github_token }}" \
           -H "Content-Type: application/json" \
           -d "$payload" \
-          "https://api.github.com/repos/$REPOSITORY/issues/$PULL_REQUEST_NUMBER/comments"
+          "https://api.github.com/repos/${{ inputs.repository }}/issues/${{ inputs.pull_request_number }}/comments"
 
         # Add annotations
         if [ ! -f changed_codeobjects.csv ]; then
