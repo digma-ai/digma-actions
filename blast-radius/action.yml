@@ -206,7 +206,7 @@ runs:
 
         # Post the PR comment (ensure you have the necessary variables defined)
         curl -X POST \
-          -H "Authorization: Bearer $GITHUB_TOKEN" \
+          -H "Authorization: Bearer ${{ inputs.github_token }}" \
           -H "Content-Type: application/json" \
           -d "$payload" \
           "https://api.github.com/repos/$REPOSITORY/issues/$PULL_REQUEST_NUMBER/comments"
