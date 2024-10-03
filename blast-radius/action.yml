@@ -211,7 +211,7 @@ runs:
             method_num = method_counter[flow_key];
 
             # Append the method to the methods list for this flow key
-            methods[flow_key] = methods[flow_key] sprintf("%d. %s.%s <a href=\"%s\">link</a>\n", method_num, class_name, method_name, trace_link);
+            methods[flow_key] = methods[flow_key] sprintf("%d. %s.%s <a href='\''%s'\''>link</a>\n", method_num, class_name, method_name, trace_link);
             # methods[flow_key] = methods[flow_key] method_num ". " class_name "." method_name " <a href='" trace_link "'>link</a>\n";
           }
           END {
