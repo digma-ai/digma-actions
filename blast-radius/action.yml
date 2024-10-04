@@ -219,13 +219,14 @@ runs:
             }
           }')
 
-        pr_comment="### Impacted Flows\n\n$grouped_flows"
-        
+
         # Escape the PR comment for JSON
-        escaped_pr_comment=$(echo "$pr_comment" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g')
+        escaped_pr_comment=$(echo "$grouped_flows" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g')
+
+        final_content="### Impacted Flows\n $escaped_pr_comment"
 
         # Prepare the JSON payload
-        payload=$(jq -n --arg body "$escaped_pr_comment" '{body: $body}')
+        payload=$(jq -n --arg body "$final_content" '{body: $body}')
 
         # Output the payload for debugging
         echo "Payload: $payload"
