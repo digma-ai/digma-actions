@@ -170,36 +170,36 @@ runs:
         # Prepare the grouped flows
         jaeger_url="${{ inputs.jaeger_url }}"
 
-        # Prepare the grouped flows
         grouped_flows=$(echo "$response" | jq -r --arg jaeger_url "$jaeger_url" '
-          .methodsFlows[]
-          | .flows[] as $flow
-          | ($flow.firstService.service // "(unknown)") as $firstService
-          | ($flow.firstService.span // "(unknown)") as $firstSpan
-          | ($flow.lastService.service // "(unknown)") as $lastService
-          | ($flow.lastService.span // "(unknown)") as $lastSpan
-          | ($flow.sampleTraceIds[0] // "(none)") as $sampleTraceId
-          | (.methodCodeObjectId // "(unknown)") as $methodCodeObjectId
-          | [$firstService, $firstSpan, $lastService, $lastSpan, $methodCodeObjectId, $sampleTraceId] | @tsv') || { echo "Error processing JSON with jq"; exit 1; }
+        .methodsFlows[]
+        | .flows[] as $flow
+        | ($flow.firstService.service // "(unknown)") as $firstService
+        | ($flow.firstService.span // "(unknown)") as $firstSpan
+        | ($flow.lastService.service // "(unknown)") as $lastService
+        | ($flow.lastService.span // "(unknown)") as $lastSpan
+        | ($flow.sampleTraceIds[0] // "(none)") as $sampleTraceId
+        | (.methodCodeObjectId // "(unknown)") as $methodCodeObjectId
+        | ($methodCodeObjectId | @uri) as $encodedMethodId
+        | ($jaeger_url + "/trace/" + $sampleTraceId + "?uiFind=" + $encodedMethodId) as $traceLink
+        | [$firstService, $firstSpan, $lastService, $lastSpan, $methodCodeObjectId, $traceLink] | @tsv') || { echo "Error processing JSON with jq"; exit 1; }
 
-        # Process the grouped flows with awk
-        grouped_flows=$(echo "$grouped_flows" | awk -F'\t' -v jaeger_url="$jaeger_url" '
+        # Process the grouped flows with awk using sprintf and single quotes in href
+        grouped_flows=$(echo "$grouped_flows" | awk -F'\t' '
           {
             firstService = $1;
             firstSpan = $2;
             lastService = $3;
             lastSpan = $4;
             methodCodeObjectId = $5;
-            sampleTraceId = $6;
+            trace_link = $6;
 
             # Split methodCodeObjectId into class and method
             split(methodCodeObjectId, method_parts, "\\$_\\$");
             class_name = method_parts[1];
             method_name = method_parts[2];
-            trace_link = jaeger_url "/trace/" sampleTraceId;
 
             # Construct the flow key with <i> tags
-            flow_key = "<i>" firstService "</i>:<b>" firstSpan "</b> -> <i>" lastService "</i>:<b>" lastSpan "</b>";
+            flow_key = "<i>" firstService "</i>:" firstSpan " -> <i>" lastService "</i>:" lastSpan;
 
             # Initialize the counter for this flow key if not already done
             if (!(flow_key in method_counter)) {
@@ -210,9 +210,8 @@ runs:
 
             method_num = method_counter[flow_key];
 
-            # Append the method to the methods list for this flow key
+            # Use sprintf with single quotes in href
             methods[flow_key] = methods[flow_key] sprintf("%d. %s.%s <a href='\''%s'\''>link</a>\n", method_num, class_name, method_name, trace_link);
-            # methods[flow_key] = methods[flow_key] method_num ". " class_name "." method_name " <a href='" trace_link "'>link</a>\n";
           }
           END {
             for (key in methods) {
