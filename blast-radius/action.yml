@@ -223,7 +223,9 @@ runs:
         # Escape the PR comment for JSON
         escaped_pr_comment=$(echo "$grouped_flows" | sed 's/\\/\\\\/g; s/"/\\"/g; s/\n/\\n/g')
 
-        final_content="### Impacted Flows\n $escaped_pr_comment"
+        final_content="### Impacted Flows
+
+        $grouped_flows"
 
         # Prepare the JSON payload
         payload=$(jq -n --arg body "$final_content" '{body: $body}')
