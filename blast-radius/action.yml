@@ -215,7 +215,7 @@ runs:
           }
           END {
             for (key in methods) {
-              print "<details>\n<summary>" key "</summary>\n" methods[key] "</details>\n";
+              print "<details>\n<summary>" key "</summary><br/>\n" methods[key] "</details>\n";
             }
           }')
 
