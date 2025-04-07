@@ -116,6 +116,9 @@ runs:
 
     - name: Parse impacted flows and create PR comment
       run: |
+
+        api_token="${{ inputs.api_token }}"
+
         if [ ! -f changed_codeobjects.csv ]; then
           echo "No changed methods detected."
           exit 0
@@ -149,6 +152,7 @@ runs:
         # Call the get_method_usage API (ignore SSL certs)
         response=$(curl -k -s -X POST "${{ inputs.digma_url }}/Insights/get_method_usage" \
           -H "Authorization: Bearer $ACCESS_TOKEN" \
+          -H "Digma-Access-Token: Token $api_token" \
           -H "Content-Type: application/json" \
           -d "$payload")
 
@@ -235,6 +239,7 @@ runs:
 
         # Post the PR comment (ensure you have the necessary variables defined)
         curl -X POST \
+          -H "Digma-Access-Token: Token $api_token" \
           -H "Authorization: Bearer ${{ inputs.github_token }}" \
           -H "Content-Type: application/json" \
           -d "$payload" \
